@@ -4,8 +4,9 @@ import { useDropzone } from 'react-dropzone';
 import Image from 'next/image';
 import { useTheme } from 'next-themes';
 
-import { Button, Input } from '../components';
+import { Button, Input, Loader } from '../components';
 import images from '../assets';
+import { NFTContext } from '../context/NFTcontext';
 
 const CreateNFT = () => {
   const { theme } = useTheme();
@@ -16,9 +17,15 @@ const CreateNFT = () => {
     description: '',
     price: '',
   });
+  const [submitAttempted, setSubmitAttempted] = useState(false);
+  const [fileInputValidation, setFileInputValidation] = useState(false);
+  const { uploadToIPFS, createNFT, isLoadingNFT } = useContext(NFTContext);
+  const [isLoading, setIsLoading] = useState(false);
 
-  const onDrop = useCallback(() => {
-    console.log('file dropped');
+  const onDrop = useCallback(async (acceptedFile) => {
+    const url = await uploadToIPFS(acceptedFile[0]);
+    setFileUrl(url);
+    console.log({ url });
   }, []);
 
   const { getInputProps, getRootProps, isDragActive, isDragAccept, isDragReject } = useDropzone({
@@ -36,6 +43,44 @@ const CreateNFT = () => {
     [isDragActive, isDragReject, isDragAccept],
   );
 
+  const validateName = (value) => {
+    if (value.trim() === '') {
+      return 'Name is required';
+    }
+    return null;
+  };
+
+  const validatePrice = (value) => {
+    if (Number.isNaN(value) || Number(value) <= 0) {
+      return 'Price must be a positive number';
+    }
+    return null;
+  };
+
+  const handleCreateNFT = async () => {
+    setSubmitAttempted(true);
+    if (!formInput.name || !formInput.price) {
+      console.error('Please fill in all required fields');
+    } else if (!fileUrl) {
+      setFileInputValidation(true);
+      console.error('Please select an image');
+    } else {
+      setIsLoading(true);
+      setFileInputValidation(false);
+      console.log(formInput, fileUrl);
+      await createNFT(formInput, fileUrl, router);
+      setIsLoading(false);
+    }
+  };
+
+  if (isLoadingNFT) {
+    return (
+      <div className="flexStart min-h-screen">
+        <Loader />
+      </div>
+    );
+  }
+
   return (
     <div className="flex justify-center sm:px-4 p-12">
       <div className="w-3/5 md:w-full">
@@ -48,7 +93,7 @@ const CreateNFT = () => {
             <div {...getRootProps()} className={fileStyle}>
               <input {...getInputProps()} />
               <div className="flexCenter flex-col text-center">
-                <p className="font-poppins dark:text-white text-nft-black-1 font-semibold text-xl">JPG, PNG, GIF, SVG, WEBM. Max 10mb.</p>
+                <p className="font-poppins dark:text-white text-nft-black-1 font-semibold text-xl">JPG, PNG, GIF, SVG, WEBM. Max 5mb.</p>
 
                 <div className="my-12 w-full flex justify-center">
                   <Image
@@ -63,6 +108,9 @@ const CreateNFT = () => {
 
                 <p className="font-poppins dark:text-white text-nft-black-1 font-semibold text-sm">Drag and Drop File</p>
                 <p className="font-poppins dark:text-white text-nft-black-1 font-semibold text-sm mt-2">Or browse media on your device</p>
+                {fileInputValidation && (
+                <p className="text-red-500 mt-2 ml-1 text-sm">Please select an image</p>
+                )}
               </div>
             </div>
             {fileUrl && (
@@ -79,28 +127,45 @@ const CreateNFT = () => {
           inputType="input"
           title="Name"
           placeholder="NFT Name"
-          handleClick={(e) => setFormInput({ ...formInput, name: e.target.value })}
+          validation={validateName}
+          handleClick={(e) => {
+            const error = validateName(e.target.value);
+            if (error) {
+              console.error(error);
+            } else {
+              setFormInput({ ...formInput, name: e.target.value });
+            }
+          }}
+          submitAttempted={submitAttempted}
         />
         <Input
           inputType="textarea"
           title="Description"
           placeholder="NFT Description"
-          handleClick={(e) => setFormInput({ ...formInput, description: e.target.value })}
+          handleClick={(e) => { setFormInput({ ...formInput, description: e.target.value }); }}
         />
         <Input
           inputType="number"
           title="Price"
           placeholder="NFT Price"
-          handleClick={(e) => setFormInput({ ...formInput, price: e.target.value })}
+          validation={validatePrice}
+          handleClick={(e) => {
+            const error = validatePrice(e.target.value);
+            if (error) {
+              console.error(error);
+            } else {
+              setFormInput({ ...formInput, price: e.target.value });
+            }
+          }}
+          submitAttempted={submitAttempted}
         />
 
         <div className="mt-7 w-full flex justify-end">
           <Button
             btnName="Create NFT"
             classStyles="rounded-xl"
-            // handleClick={() => {}}
-            handleClick={() => { console.log(formInput, fileUrl); }}
-            // handleClick={() => { router.push('/my-nfts'); }}
+            handleClick={handleCreateNFT}
+            disabled={isLoading}
           />
         </div>
       </div>
